@@ -30,6 +30,7 @@ class SVNCake extends SVNCakeAppModel {
      * @return boolean true if repo is loaded
      */
     public function loadRepo($base = null) {
+        $this->repo = "file://$base";
     }
 
     /*
@@ -77,21 +78,69 @@ class SVNCake extends SVNCakeAppModel {
      * tree
      * Return the contents of a tree
      *
-     * @param $hash string the node to look up
+     * @param $branch string the node to look up
      * @param $path string the path to examine
+     * @param $rev string revision to examine
      */
-    public function tree($hash = 'master', $folderPath = '') {
+    public function tree($branch = 'HEAD', $folderPath = '', $rev = 'HEAD') {
         if (!$this->repoLoaded()) return null;
+
+        // Check the last character isnt a / otherwise SVN will return the contents of the folder
+        if ($folderPath != '' && $folderPath[strlen($folderPath)-1] == '/') {
+            $folderPath = substr($folderPath, 0, strlen($folderPath)-1);
+        }
+
+        $out = $this->exec(sprintf('info --xml %s@%s', escapeshellarg($this->repo.$folderPath), escapeshellarg($rev)));
+        $xml = simplexml_load_string($out);
+
+        if (!isset($xml->entry)) {
+            return false;
+        }
+
+        // Init standard return array
+        $return = array(
+            'type' => (string) $xml->entry['kind'],
+            'content' => '',
+            'path' => $folderPath
+        );
+
+        // Handle file case (I know its a tree function, but we might as well)
+        if ($return['type'] == 'file') {
+            $return['content'] = $this->show($folderPath, $rev);
+        }
+
+        if ($return['type'] == 'dir') {
+            $out = $this->exec(sprintf('ls --xml %s@%s', escapeshellarg($this->repo.$folderPath), escapeshellarg($rev)));
+            $xml = simplexml_load_string($out);
+    
+            foreach ($xml->list->entry as $entry) {
+                $file = array();
+                $file['type'] = (string) $entry['kind'];
+                $file['name'] = (string) $entry->name;
+                $file['fullpath'] = $folderPath.((string) $entry->name);
+                // Get the size if the type is blob
+                if ($file['type'] == 'file') {
+                    $file['size'] = (string) $entry->size;
+                }
+                $file['updated'] = gmdate('Y-m-d H:i:s', strtotime((string) $entry->commit->date));
+                $file['message'] = '[currently not avaliable]';
+                $return['content'][] = $file;
+            }
+        }
+        return $return;
     }
 
     /*
      * show
      * Return the details of a blob
      *
-     * @param $hash blob to look up
+     * @param $folderPath path to load
+     * @param $rev revision to load
      */
-    public function show($hash) {
+    public function show($folderPath = '', $rev = 'HEAD') {
         if (!$this->repoLoaded()) return null;
+
+        return $this->exec(sprintf('cat %s@%s', escapeshellarg($this->repo.$folderPath), escapeshellarg($rev)));
     }
 
     /*
@@ -154,6 +203,8 @@ class SVNCake extends SVNCakeAppModel {
      */
     public function exec($command) {
         if (!$this->repoLoaded()) return null;
+
+        return shell_exec("svn $command");
     }
 
     /*
