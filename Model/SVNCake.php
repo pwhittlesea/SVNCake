@@ -41,6 +41,33 @@ class SVNCake extends SVNCakeAppModel {
      * @return boolean true if repo is created
      */
     public function createRepo($base = null) {
+        if (file_exists($base)) {
+            // Lets talk about logging as some point
+            return;
+        }
+
+        $return = 0;
+        $output = array();
+        exec("svnadmin create $base", $output, $return);
+
+        if ($return != 0) {
+            // Lets talk about logging as some point
+            return;
+        }
+
+        // // Provide the users with a good repo layout
+        // $return = 0;
+        // $output = array();
+        // exec("svn mkdir file:///$base/trunk file:///$base/tags file:///$base/branches -m'Trunk Tag Branches'", $output, $return);
+        // 
+        // if ($return != 0) {
+        //     // Lets talk about logging as some point
+        //     return;
+        // }
+
+        // Copy any hooks in here
+
+        return ($return == 0);
     }
 
     /*
@@ -61,6 +88,27 @@ class SVNCake extends SVNCakeAppModel {
      */
     public function branch() {
         if (!$this->repoLoaded()) return null;
+
+        $res = array();
+
+        $out = $this->exec(sprintf(' ls %s@HEAD', escapeshellarg($this->repo.'/branches')));
+
+        if ($out['return'] == 0) {
+            foreach (explode("\n", $out['output']) as $entry) {
+                if (substr(trim($entry), -1) == '/') {
+                    $branch = substr(trim($entry), 0, -1);
+                    $res[] = $branch;
+                }
+            }
+        }
+
+        $out = $this->exec(sprintf(' info %s@HEAD', escapeshellarg($this->repo.'/trunk')));
+
+        if ($out['return'] == 0) {
+            $res[] = 'trunk';
+        }
+
+        return $res;
     }
 
     /*
@@ -91,16 +139,21 @@ class SVNCake extends SVNCakeAppModel {
         }
 
         $out = $this->exec(sprintf('info --xml %s@%s', escapeshellarg($this->repo.$folderPath), escapeshellarg($rev)));
-        $xml = simplexml_load_string($out);
+
+        if ($out['return'] != 0) {
+            return array('type' => 'invalid');
+        }
+
+        $xml = simplexml_load_string($out['output']);
 
         if (!isset($xml->entry)) {
-            return false;
+            return array('type' => 'invalid');
         }
 
         // Init standard return array
         $return = array(
             'type' => (string) $xml->entry['kind'],
-            'content' => '',
+            'content' => array(),
             'path' => $folderPath
         );
 
@@ -111,8 +164,8 @@ class SVNCake extends SVNCakeAppModel {
 
         if ($return['type'] == 'dir') {
             $out = $this->exec(sprintf('ls --xml %s@%s', escapeshellarg($this->repo.$folderPath), escapeshellarg($rev)));
-            $xml = simplexml_load_string($out);
-    
+            $xml = simplexml_load_string($out['output']);
+
             foreach ($xml->list->entry as $entry) {
                 $file = array();
                 $file['type'] = (string) $entry['kind'];
@@ -127,6 +180,7 @@ class SVNCake extends SVNCakeAppModel {
                 $return['content'][] = $file;
             }
         }
+
         return $return;
     }
 
@@ -140,7 +194,8 @@ class SVNCake extends SVNCakeAppModel {
     public function show($folderPath = '', $rev = 'HEAD') {
         if (!$this->repoLoaded()) return null;
 
-        return $this->exec(sprintf('cat %s@%s', escapeshellarg($this->repo.$folderPath), escapeshellarg($rev)));
+        $out = $this->exec(sprintf('cat %s@%s', escapeshellarg($this->repo.$folderPath), escapeshellarg($rev)));
+        return $out['output'];
     }
 
     /*
@@ -201,10 +256,16 @@ class SVNCake extends SVNCakeAppModel {
      *
      * @param $command string the command to run
      */
-    public function exec($command) {
+    public function exec($command, $bare = false) {
         if (!$this->repoLoaded()) return null;
 
-        return shell_exec("svn $command");
+        $svn = ($bare) ? '' : 'svn';
+        $return = array();
+
+        $return['out'] = exec("$svn $command", $return['output'], $return['return']);
+        $return['output'] = implode("\n", $return['output']);
+
+        return $return;
     }
 
     /*
