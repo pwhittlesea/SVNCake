@@ -232,7 +232,7 @@ class SVNCake extends SVNCakeAppModel {
         $xml = simplexml_load_string($out['output']);
 
         foreach ($xml->logentry as $entry) {
-            $commits[] = $this->showCommit((string) $entry['revision']);
+            $commits[] = $this->showCommit((string) $entry['revision'], false);
         }
 
         return $commits;
@@ -243,12 +243,15 @@ class SVNCake extends SVNCakeAppModel {
      * Return a list of commits
      *
      * @param $hash string the hash to look up
+     * @param $diff boolean do we want a diff?
      */
-    public function showCommit($hash) {
+    public function showCommit($hash, $diff = true) {
         if (!$this->repoLoaded()) return null;
 
         $result['Commit'] = $this->_commitMetadata($hash);
-        $result['Commit']['diff'] = $this->diff($hash);
+        if ($diff) {
+            $result['Commit']['diff'] = $this->diff($hash);
+        }
 
         return $result;
     }
