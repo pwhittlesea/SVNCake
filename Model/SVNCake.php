@@ -260,6 +260,11 @@ class SVNCake extends SVNCakeAppModel {
      */
     public function size() {
         if (!$this->repoLoaded()) return null;
+
+        $output = $this->exec('du -s '.str_replace('file://', '', $this->repo), true);
+        $output = explode("\t", $output['output']);
+
+        return $output[0];
     }
 
     /*
