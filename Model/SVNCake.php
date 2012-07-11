@@ -61,7 +61,7 @@ class SVNCake extends SVNCakeAppModel {
         // $return = 0;
         // $output = array();
         // exec("svn mkdir file:///$base/trunk file:///$base/tags file:///$base/branches -m'Trunk Tag Branches'", $output, $return);
-        // 
+        //
         // if ($return != 0) {
         //     // Lets talk about logging as some point
         //     return;
@@ -271,7 +271,21 @@ class SVNCake extends SVNCakeAppModel {
 
         $out = $this->exec(sprintf('diff -c %s %s', escapeshellarg($hash), escapeshellarg($this->repo)));
 
-        return Diff::parse($out['output']);
+        $output = Diff::parse($out['output']);
+
+        foreach ($output as $file => $array) {
+            $output[$file]['less'] = 0;
+            $output[$file]['more'] = 0;
+
+            foreach ($array['hunks'] as $hunk) {
+                foreach ($hunk as $line) {
+                    if ($line[0] == '-') $output[$file]['less']++;
+                    if ($line[0] == '+') $output[$file]['more']++;
+                }
+            }
+        }
+
+        return $output;
     }
 
     /**
