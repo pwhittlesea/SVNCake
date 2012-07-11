@@ -40,9 +40,10 @@ class SVNCake extends SVNCakeAppModel {
      * Create a repo at a location
      *
      * @param $base string the path to use
+     * @param $goodPractice boolean lets be nice
      * @return boolean true if repo is created
      */
-    public function createRepo($base = null) {
+    public function createRepo($base = null, $goodPractice = false) {
         if (file_exists($base)) {
             // Lets talk about logging as some point
             return;
@@ -57,15 +58,17 @@ class SVNCake extends SVNCakeAppModel {
             return;
         }
 
-        // // Provide the users with a good repo layout
-        // $return = 0;
-        // $output = array();
-        // exec("svn mkdir file:///$base/trunk file:///$base/tags file:///$base/branches -m'Trunk Tag Branches'", $output, $return);
-        //
-        // if ($return != 0) {
-        //     // Lets talk about logging as some point
-        //     return;
-        // }
+        if ($goodPractice) {
+            // Provide the users with a good repo layout
+            $return = 0;
+            $output = array();
+            exec("svn mkdir file:///$base/trunk file:///$base/tags file:///$base/branches -m'Trunk Tag Branches'", $output, $return);
+            
+            if ($return != 0) {
+                // Lets talk about logging as some point
+                return;
+            }
+        }
 
         // Copy any hooks in here
 
