@@ -14,6 +14,8 @@
 * @license       MIT License (http://www.opensource.org/licenses/mit-license.php)
 */
 
+App::import("Vendor", "SVNCake.UnifiedDiff", array("file"=>"UnifiedDiff/Diff.php"));
+
 class SVNCake extends SVNCakeAppModel {
 
     // Reference to our copy of the open svn repo
@@ -207,8 +209,24 @@ class SVNCake extends SVNCakeAppModel {
      * @param $offset int an offest for the number restriction
      * @param $filepath string files can be specified to limit log return
      */
-    public function log($branch = 'master', $limit = 10, $offset = 0, $filepath = '') {
+    public function log($branch = 'HEAD', $limit = 10, $offset = 0, $filepath = '') {
         if (!$this->repoLoaded()) return null;
+
+        if ($branch != 'HEAD' and !preg_match('/^\d+$/', $branch)) {
+            // we accept only revisions or HEAD
+            $branch = 'HEAD';
+        }
+
+        $commits = array();
+
+        $out = $this->exec(sprintf('log --xml -v --limit %s %s@%s', escapeshellarg(($limit+$offset)), escapeshellarg($this->repo.$filepath), escapeshellarg($branch)));
+        $xml = simplexml_load_string($out['output']);
+
+        foreach ($xml->logentry as $entry) {
+            $commits[] = $this->showCommit((string) $entry['revision']);
+        }
+
+        return $commits;
     }
 
     /*
@@ -219,6 +237,11 @@ class SVNCake extends SVNCakeAppModel {
      */
     public function showCommit($hash) {
         if (!$this->repoLoaded()) return null;
+
+        $result['Commit'] = $this->_commitMetadata($hash);
+        $result['Commit']['diff'] = $this->diff($hash);
+
+        return $result;
     }
 
     /*
@@ -239,6 +262,16 @@ class SVNCake extends SVNCakeAppModel {
      */
     private function diff($hash, $parent = null) {
         if (!$this->repoLoaded()) return null;
+
+        if ($parent == null) {
+            $parent = $this->_commitParent($hash);
+        }
+
+        $return = array();
+
+        $out = $this->exec(sprintf('diff -c %s %s', escapeshellarg($hash), escapeshellarg($this->repo)));
+
+        return Diff::parse($out['output']);
     }
 
     /**
@@ -276,16 +309,39 @@ class SVNCake extends SVNCakeAppModel {
      */
     private function _commitParent($hash) {
         if (!$this->repoLoaded()) return null;
+
+        return ($hash <= 0) ? 0 : ($hash-1);
     }
 
     /*
      * _commitMetadata
      * Return the details for the commit in a hash
      *
-     * @param $hash commit to look up
+     * @param $branch commit to look up
      */
-    private function _commitMetadata($hash) {
+    private function _commitMetadata($branch) {
         if (!$this->repoLoaded()) return null;
+
+        if ($branch != 'HEAD' and !preg_match('/^\d+$/', $branch)) {
+            // we accept only revisions or HEAD
+            $branch = 'HEAD';
+        }
+
+        $commit = array();
+
+        $out = $this->exec(sprintf('log --xml -v --limit 1 %s@%s', escapeshellarg($this->repo), escapeshellarg($branch)));
+        $xml = simplexml_load_string($out['output']);
+
+        $commit['author']['name'] = (string) $xml->logentry->author;
+        $commit['author']['email'] = '[currently not avaliable]';
+        $commit['date'] = gmdate('Y-m-d H:i:s', strtotime((string) $xml->logentry->date));
+        $split = preg_split("[\n\r]", (string) $xml->logentry->msg, 2);
+        $commit['subject'] = $split[0];
+        $commit['hash'] = (string) $xml->logentry['revision'];
+        $commit['body'] = (isset($split[1])) ? trim($split[1]) : '';
+        $commit['parent'] = $this->_commitParent($commit['hash']);
+
+        return $commit;
     }
 
 }

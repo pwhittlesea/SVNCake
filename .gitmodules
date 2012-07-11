@@ -1,0 +1,3 @@
+[submodule "Vendor/UnifiedDiff"]
+	path = Vendor/UnifiedDiff
+	url = git://github.com/pwhittlesea/UnifiedDiff.git
