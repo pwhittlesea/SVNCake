@@ -120,11 +120,17 @@ class SVNCake extends SVNCakeAppModel {
      * hasTree
      * Check if repo has a tree
      *
-     * @param $hash string the tree to look up
+     * @param $branch string the tree to look up
      * @return boolean true if tree exists
      */
-    public function hasTree($hash) {
+    public function hasTree($branch) {
         if (!$this->repoLoaded()) return null;
+
+        if (ucwords($branch) == 'HEAD') return true;
+
+        $out = $this->exec(sprintf('log %s@%s', escapeshellarg($this->repo), escapeshellarg($branch)));
+
+        return ($out['return'] == 0);
     }
 
     /*
