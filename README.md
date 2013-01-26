@@ -1,3 +1,6 @@
+This module has been superceded by GitCake (http://github.com/pwhittlesea/GitCake)
+
+
 SVNCake
 =======
 
